@@ -12,17 +12,21 @@ major bump rather than a first `1.0.0`.
 
 ### Added
 
-- Multi-architecture support: `aarch64`, `amd64`, `armv7` and `i386`. Previously
-  `aarch64` only.
+- `amd64` support alongside `aarch64`. Those are the two architectures Home Assistant
+  still supports; `armv7` and `i386` were dropped in Home Assistant 2025.12.
 - `timezone` option. When left empty the add-on now asks Home Assistant which time
   zone it runs in, instead of assuming `Europe/Brussels`. This affects how relative
   history and logbook questions are turned into timestamps.
 - JSON-RPC batch requests are accepted on `/mcp` and `/messages`.
 - English documentation: `README.md`, `DOCS.md` and option translations.
-- A Docker `HEALTHCHECK`, alongside the existing Supervisor watchdog.
+- A Docker `HEALTHCHECK` polling `/health`. It replaces the add-on `watchdog` option,
+  which the Home Assistant add-on linter now reports as obsolete.
 
 ### Changed
 
+- `websockets` and `tzdata` are pinned to exact versions. The image is rebuilt on each
+  user's machine at whatever date they install it, so an unpinned dependency means no
+  two installations necessarily run the same code.
 - **Breaking:** every tool description, response field and parameter name is now in
   English. Tool *names* are unchanged, so existing client configurations keep working,
   but code or prompts that depended on the Dutch response keys must be updated:

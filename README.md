@@ -3,8 +3,7 @@
 [![License: MIT][license-badge]][license]
 [![Supports aarch64][aarch64-badge]](#requirements)
 [![Supports amd64][amd64-badge]](#requirements)
-[![Supports armv7][armv7-badge]](#requirements)
-[![Supports i386][i386-badge]](#requirements)
+[![CI][ci-badge]][ci]
 
 **Give an AI assistant the same reach over Home Assistant that you have.**
 
@@ -53,7 +52,8 @@ refactor it, and build it out. That is a much larger grant of authority, which i
   snapshot cannot travel inside one. Those land in the `share` folder and the tool
   returns the path. Over-long text responses are written there too rather than being
   silently cut into unparseable JSON.
-- **Watchdog-backed.** If `/health` stops answering, the Supervisor restarts it.
+- **Self-healing.** A Docker `HEALTHCHECK` polls `/health`; a container that stops
+  answering is restarted.
 - **One file, one dependency.** `server.py` plus `websockets`. Nothing to audit but the
   thing itself.
 
@@ -61,7 +61,9 @@ refactor it, and build it out. That is a much larger grant of authority, which i
 
 - A **Home Assistant OS** or **Home Assistant Supervised** installation. The add-on
   needs the Supervisor; it will not run on Home Assistant Container or Core.
-- Architecture `aarch64`, `amd64`, `armv7` or `i386`.
+- Architecture `aarch64` (Raspberry Pi 4/5 and most ARM hardware) or `amd64`. Those
+  are the two Home Assistant still supports; `armv7` and `i386` were dropped in Home
+  Assistant 2025.12.
 - An MCP client that can reach the Home Assistant machine over HTTP.
 
 ## Installation
@@ -184,8 +186,8 @@ your backups.
 - **Do not forward port 8099 to the internet.** The transport is plain HTTP; the token
   would cross the network in the clear. Reach it over a VPN (WireGuard, Tailscale) or
   put it behind a reverse proxy that terminates TLS.
-- **`/health` is intentionally unauthenticated**, because the Supervisor watchdog cannot
-  send a token. It reveals only `ok`, the version and the number of tools.
+- **`/health` is intentionally unauthenticated**, because the container's health check
+  cannot send a token. It reveals only `ok`, the version and the number of tools.
 - **Treat it as an admin credential** in whatever client you configure it in, and rotate
   the token if a machine holding it is lost.
 
@@ -232,7 +234,7 @@ Nabu Casa, Inc.
 [license-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [aarch64-badge]: https://img.shields.io/badge/aarch64-yes-green.svg
 [amd64-badge]: https://img.shields.io/badge/amd64-yes-green.svg
-[armv7-badge]: https://img.shields.io/badge/armv7-yes-green.svg
-[i386-badge]: https://img.shields.io/badge/i386-yes-green.svg
+[ci]: https://github.com/MatthiasVanDE/hassio-mcp-server/actions/workflows/ci.yaml
+[ci-badge]: https://github.com/MatthiasVanDE/hassio-mcp-server/actions/workflows/ci.yaml/badge.svg
 [repo-badge]: https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg
 [repo-link]: https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FMatthiasVanDE%2Fhassio-mcp-server

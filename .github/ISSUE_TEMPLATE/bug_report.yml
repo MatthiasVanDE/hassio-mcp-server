@@ -48,7 +48,7 @@ body:
     id: arch
     attributes:
       label: Architecture
-      options: [aarch64, amd64, armv7, i386, "not sure"]
+      options: [aarch64, amd64, "not sure"]
     validations:
       required: true
 

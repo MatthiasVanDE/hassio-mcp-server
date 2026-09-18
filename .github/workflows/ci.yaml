@@ -79,10 +79,6 @@ jobs:
             platform: linux/arm64
           - arch: amd64
             platform: linux/amd64
-          - arch: armv7
-            platform: linux/arm/v7
-          - arch: i386
-            platform: linux/386
     steps:
       - uses: actions/checkout@v4
       - name: Set up QEMU

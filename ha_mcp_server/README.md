@@ -10,6 +10,6 @@ The add-on itself. See:
 | File | Role |
 |---|---|
 | `server.py` | The entire MCP server: transports, JSON-RPC, all 18 tools |
-| `config.yaml` | Add-on manifest: permissions, ports, options, watchdog |
+| `config.yaml` | Add-on manifest: permissions, ports, options |
 | `Dockerfile` | Built by the Supervisor on your own machine |
 | `translations/en.yaml` | Option labels shown in the Home Assistant UI |

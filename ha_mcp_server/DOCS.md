@@ -57,9 +57,9 @@ wrong time zone configured, silently shifts every answer by the offset.
 |---|---|
 | `8099/tcp` | `POST /mcp` streamable HTTP · `GET /sse` SSE transport · `GET /health` |
 
-`/health` is deliberately **not** authenticated: the Supervisor watchdog cannot send a
-bearer token, and the add-on is configured to be restarted when it stops answering. It
-returns only `{"status": "ok", "version": …, "tools": 18}`.
+`/health` is deliberately **not** authenticated: the container's Docker `HEALTHCHECK`
+polls it and cannot send a bearer token. A container that stops answering is restarted.
+The endpoint returns only `{"status": "ok", "version": …, "tools": 18}`.
 
 Both `/mcp` and `/sse` require `Authorization: Bearer <token>`.
 
@@ -313,8 +313,8 @@ the configured one character for character. Leading or trailing whitespace in th
 configuration field is stripped; whitespace in the client's header is not.
 
 **`connection to Home Assistant: HTTP 0` at start-up.**
-The core was not up yet. The add-on starts after Home Assistant and the watchdog will
-restart it, but if this persists, check the core log with `ha_error_log` or the
+The core was not up yet. The add-on starts after Home Assistant and the health check
+restarts it, but if this persists, check the core log with `ha_error_log` or the
 Supervisor UI.
 
 **History or logbook answers are shifted by a few hours.**

@@ -12,8 +12,8 @@ That authority is the point of the add-on. It also means:
 - **The bearer token is the entire security boundary.** Use a long random value.
 - **The transport is plain HTTP.** Port 8099 must not be reachable from the internet.
   Use a VPN, or a reverse proxy that terminates TLS.
-- **`/health` is unauthenticated by design**, because the Supervisor watchdog cannot
-  send a token. It exposes only liveness, the version and the number of tools.
+- **`/health` is unauthenticated by design**, because the container's health check
+  cannot send a token. It exposes only liveness, the version and the number of tools.
 
 Reports that amount to "an attacker who already has the token can do administrative
 things" describe the documented design rather than a vulnerability.

@@ -12,19 +12,17 @@ slug: ha_mcp_server
 description: >-
   Expose the full Home Assistant REST, WebSocket and Supervisor API as MCP tools over HTTP.
 url: https://github.com/MatthiasVanDE/hassio-mcp-server
-stage: stable
 
-# A plain `FROM python:3.12-slim` image, which upstream publishes for all of these.
+# The two architectures Home Assistant still supports; armv7 and i386 were dropped in
+# Home Assistant 2025.12. Upstream publishes python:3.12-slim for both, so one plain
+# `FROM` covers them without a build matrix.
 arch:
   - aarch64
   - amd64
-  - armv7
-  - i386
 
 # `services` = start after Home Assistant, because the first thing it does is call
-# the core API. `auto` = come back up after the host reboots.
+# the core API.
 startup: services
-boot: auto
 
 # One Python process that handles SIGTERM itself; the s6 layer adds nothing here.
 init: false
@@ -47,10 +45,9 @@ map:
   - type: share
     read_only: false
 
-# If /health fails to answer three times, the Supervisor restarts the container.
-# That is the difference between "it runs" and "it is in production".
-watchdog: "http://[HOST]:[PORT:8099]/health"
-
+# Restarting an unhealthy container is handled by the Docker HEALTHCHECK in the
+# Dockerfile, which polls /health. The add-on `watchdog` option that used to do this
+# is obsolete.
 ports:
   8099/tcp: 8099
 ports_description:
