@@ -1,0 +1,97 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-yaml:
+    name: YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: yamllint
+        run: yamllint --strict --config-file .yamllint repository.yaml ha_mcp_server/
+
+  lint-addon:
+    name: Add-on manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Home Assistant add-on linter
+        uses: frenck/action-addon-linter@v2
+        with:
+          path: "./ha_mcp_server"
+
+  lint-dockerfile:
+    name: Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ha_mcp_server/Dockerfile
+
+  lint-python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Syntax check
+        run: python -m compileall -q ha_mcp_server/server.py
+      - name: ruff
+        run: ruff check --select=E9,F63,F7,F82,F401,F841 --line-length=120 ha_mcp_server/server.py
+
+  test:
+    name: Transport tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install "websockets>=12"
+      - name: Run tests
+        run: python tests/test_transport.py
+
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    needs: [lint-addon, lint-dockerfile, lint-python]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            platform: linux/arm64
+          - arch: amd64
+            platform: linux/amd64
+          - arch: armv7
+            platform: linux/arm/v7
+          - arch: i386
+            platform: linux/386
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ha_mcp_server
+          platforms: ${{ matrix.platform }}
+          push: false

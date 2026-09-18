@@ -1,0 +1,79 @@
+name: Bug report
+description: Something does not work the way the documentation says it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do not use this form for security issues —
+        use [private reporting](https://github.com/MatthiasVanDE/hassio-mcp-server/security/advisories/new).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: input
+    id: addon-version
+    attributes:
+      label: Add-on version
+      placeholder: "2.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About.
+      placeholder: "2026.9.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-type
+    attributes:
+      label: Installation type
+      options:
+        - Home Assistant OS
+        - Home Assistant Supervised
+        - Other (note that the add-on requires the Supervisor)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Architecture
+      options: [aarch64, amd64, armv7, i386, "not sure"]
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: "Claude Desktop via mcp-remote / Claude Code / other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Add-on log
+      description: >-
+        Set `log_level: debug`, reproduce, then paste the relevant lines. Check first
+        that no token or personal data is in there.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: tool-call
+    attributes:
+      label: The tool call that misbehaved
+      description: Tool name and arguments, if the problem is with a specific tool.
+      render: json

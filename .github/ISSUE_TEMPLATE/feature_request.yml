@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest a tool or a capability.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >-
+        Describe the goal rather than the solution. Quite often it is already reachable
+        with `ha_rest` or `ha_ws`, and then the answer is a documentation fix.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like the add-on to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried?
+      description: Which API endpoint or WebSocket command covers this today, if you know?

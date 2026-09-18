@@ -1,0 +1,22 @@
+---
+configuration:
+  token:
+    name: API token
+    description: >-
+      Bearer token your MCP client must send in the Authorization header. Generate a long
+      random string, for example with `openssl rand -hex 32`. The add-on refuses to start
+      while this is empty, because an unauthenticated port here grants full administrative
+      access to Home Assistant.
+  log_level:
+    name: Log level
+    description: >-
+      How much the add-on writes to its log. Use `debug` to see every incoming tool call
+      with its arguments; `info` is the sensible default.
+  timezone:
+    name: Time zone override
+    description: >-
+      Optional IANA time zone name, for example `Europe/Brussels`. Leave this empty and the
+      add-on takes the time zone from Home Assistant itself, which is almost always correct.
+      It only affects how relative questions ("the last 24 hours") are turned into timestamps.
+network:
+  8099/tcp: MCP endpoint (streamable HTTP on /mcp, SSE on /sse, health check on /health)
