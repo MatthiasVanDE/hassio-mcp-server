@@ -5,7 +5,7 @@
 # multi-architecture manifest, one `FROM` covers both aarch64 and amd64 without a
 # build matrix. Debian slim rather than Alpine, so pip installs a normal manylinux
 # wheel instead of compiling one on a Raspberry Pi.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # websockets is the only dependency: the REST API is reached with urllib from the
 # standard library, but Home Assistant's WebSocket API is not. That API is exactly
