@@ -15,7 +15,7 @@ jobs:
     name: YAML
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: yamllint
         run: yamllint --strict --config-file .yamllint repository.yaml ha_mcp_server/ .github/workflows/
 
@@ -23,7 +23,7 @@ jobs:
     name: Version consistency
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: The manifest, the code and the changelog must agree
         # Caught here rather than at release time: with a prebuilt `image:` in the
         # manifest, a version that is wrong at the moment of tagging is a broken
@@ -41,7 +41,7 @@ jobs:
     name: Add-on manifest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Home Assistant add-on linter
         uses: frenck/action-addon-linter@v2
         with:
@@ -51,7 +51,7 @@ jobs:
     name: Dockerfile
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
@@ -61,7 +61,7 @@ jobs:
     name: Python
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -76,7 +76,7 @@ jobs:
     name: Transport tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -98,7 +98,7 @@ jobs:
           - arch: amd64
             platform: linux/amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Buildx
