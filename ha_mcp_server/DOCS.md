@@ -16,9 +16,9 @@ and change your Home Assistant installation.
    compiled on your machine.
 3. Start it. Nothing has to be configured first — a token is generated on the first
    start if you have not set one.
-4. Click **OPEN WEB UI** (or the **MCP Server** entry in the sidebar). The page shows
-   the endpoint, the token and a ready-made client configuration, each with a copy
-   button.
+4. Click **OPEN WEB UI** on the add-on. The page shows the endpoint, the token and a
+   ready-made client configuration, each with a copy button. **Show in sidebar**, on
+   that same add-on page, puts it in the sidebar for good.
 
 ## The add-on page
 

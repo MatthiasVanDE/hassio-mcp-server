@@ -110,8 +110,9 @@ add-on's Documentation tab once installed.
 ## Connecting a client
 
 **The add-on's own page has all of this filled in for you**, with your address and
-your token: click **OPEN WEB UI**, or the **MCP Server** entry in the sidebar. What
-follows is the same thing, spelled out.
+your token: click **OPEN WEB UI** on the add-on. (Flip **Show in sidebar** on the same
+page and it gets a permanent sidebar entry.) What follows is the same thing, spelled
+out.
 
 The endpoint is `http://<home-assistant-host>:8099/mcp`, with your token in an
 `Authorization: Bearer` header.
