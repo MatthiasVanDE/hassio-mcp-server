@@ -95,6 +95,24 @@ The endpoint returns only `{"status": "ok", "version": …, "tools": 18}`.
 
 Both `/mcp` and `/sse` require `Authorization: Bearer <token>`.
 
+## Reaching it from a machine that is not on your network
+
+The endpoint is plain HTTP and the token travels in a header, so anything that exposes
+port 8099 to the internet — a port forward, a DMZ rule, a naked reverse proxy — puts an
+administrative credential for your house on the wire in the clear. Two ways to do this
+properly:
+
+- **A VPN into your own network**, which is the simplest and the one to prefer.
+  WireGuard or Tailscale, both available as add-ons; the client then uses exactly the
+  same `http://<host>:8099/mcp` address as it would at home.
+- **A reverse proxy that terminates TLS**, if the client cannot hold a VPN. Give it its
+  own hostname and certificate, proxy to `<host>:8099`, and pass the `Authorization`
+  header through untouched. The bearer token stays the only thing standing between the
+  internet and your installation, so treat a leaked token as a break-in and rotate it.
+
+Home Assistant Cloud (Nabu Casa) does **not** cover this: it publishes Home Assistant
+itself, not an add-on's own port.
+
 ## Connecting a client
 
 ### Claude Code

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from zoneinfo import ZoneInfo
 
-VERSION = "2.1.0"
+VERSION = "2.1.1"
 SUPERVISOR = os.environ.get("SUPERVISOR_TOKEN", "")
 CORE_REST = "http://supervisor/core/api"
 CORE_WS = "ws://supervisor/core/websocket"

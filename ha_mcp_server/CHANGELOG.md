@@ -4,6 +4,20 @@ All notable changes to this add-on are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.1.1 — 2026-09-19
+
+### Fixed
+
+- The `token` option is no longer declared as required. It stopped being required in
+  2.1.0, when an empty value started meaning "generate one", but the schema still said
+  otherwise and the configuration panel marked a field with a red asterisk that is
+  perfectly fine to leave alone.
+
+### Added
+
+- Documentation on reaching the add-on from outside your own network, and why a port
+  forward is the wrong answer.
+
 ## 2.1.0 — 2026-09-19
 
 Everything in this release is about the distance between finding the add-on and

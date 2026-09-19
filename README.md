@@ -155,7 +155,7 @@ same bearer token.
 
 ```bash
 curl -s http://homeassistant.local:8099/health
-# {"status": "ok", "version": "2.1.0", "tools": 18}
+# {"status": "ok", "version": "2.1.1", "tools": 18}
 
 curl -s http://homeassistant.local:8099/mcp \
   -H "Authorization: Bearer YOUR_TOKEN" \

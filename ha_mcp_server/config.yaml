@@ -7,7 +7,7 @@
 # Assistant machine itself, so it is always up and reachable from any device -- not
 # only from the one computer that happens to be running an MCP client.
 name: MCP Server (Home Assistant API)
-version: "2.1.0"
+version: "2.1.1"
 slug: ha_mcp_server
 description: >-
   Expose the full Home Assistant REST, WebSocket and Supervisor API as MCP tools over HTTP.
@@ -88,7 +88,10 @@ options:
   log_level: info
 
 schema:
-  token: password
+  # Optional since 2.1.0, when an empty token stopped being fatal and started meaning
+  # "generate one". Declared required, the configuration panel puts a red asterisk on a
+  # field that is genuinely fine to leave alone.
+  token: password?
   log_level: list(debug|info|warning|error)
   # Optional IANA time zone override. Left out, the add-on asks Home Assistant which
   # time zone it runs in, which is what you want in nearly every case.
