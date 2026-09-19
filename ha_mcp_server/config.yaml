@@ -22,23 +22,20 @@ url: https://github.com/MatthiasVanDE/hassio-mcp-server
 # unless the tag, this version and the changelog agree.
 image: ghcr.io/matthiasvande/{arch}-addon-ha-mcp-server
 
-# This add-on is not a rolling experiment; the store may say so.
-stage: stable
-
-# Nothing in the container is state worth freezing: the token lives in /data, which
-# the Supervisor backs up either way. No reason to stop the add-on for a backup.
-backup: hot
+# Not declared because they are already the defaults, and the add-on linter rejects
+# repeating a default: `stage: stable`, `backup: hot` (nothing in the container is
+# state worth stopping the add-on for; the token lives in /data, which the Supervisor
+# backs up anyway) and `panel_admin: true` (see below).
 
 # THE ADD-ON'S OWN PAGE ("OPEN WEB UI"), on a port of its own.
 # It shows the endpoint, the token with a copy button, a ready-made client
 # configuration and the tool list -- the things a new user would otherwise have to
 # assemble out of the documentation. The Supervisor authenticates the visitor before
-# proxying anything here, and `panel_admin` keeps the sidebar entry to administrators;
-# the server additionally checks group membership itself before it prints the token,
-# because that panel setting governs the sidebar, not the URL.
+# proxying anything here, and the default `panel_admin: true` keeps the sidebar entry
+# to administrators. The server additionally checks group membership itself before it
+# prints the token, because that panel setting governs the sidebar, not the URL.
 ingress: true
 ingress_port: 8098
-panel_admin: true
 panel_icon: mdi:robot-happy-outline
 panel_title: MCP Server
 
