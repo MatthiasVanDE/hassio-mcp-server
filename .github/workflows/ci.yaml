@@ -17,7 +17,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: yamllint
-        run: yamllint --strict --config-file .yamllint repository.yaml ha_mcp_server/
+        run: yamllint --strict --config-file .yamllint repository.yaml ha_mcp_server/ .github/workflows/
+
+  version:
+    name: Version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The manifest, the code and the changelog must agree
+        # Caught here rather than at release time: with a prebuilt `image:` in the
+        # manifest, a version that is wrong at the moment of tagging is a broken
+        # install for everyone, not an inconvenience for the maintainer.
+        run: |
+          set -euo pipefail
+          version=$(awk -F'"' '/^version:/ {print $2; exit}' ha_mcp_server/config.yaml)
+          echo "config.yaml says ${version}"
+          grep -q "^VERSION = \"${version}\"" ha_mcp_server/server.py \
+            || { echo "server.py reports a different version" >&2; exit 1; }
+          grep -q "^## ${version} " ha_mcp_server/CHANGELOG.md \
+            || { echo "CHANGELOG.md has no entry for ${version}" >&2; exit 1; }
 
   lint-addon:
     name: Add-on manifest

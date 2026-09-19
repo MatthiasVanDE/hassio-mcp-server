@@ -41,6 +41,13 @@ refactor it, and build it out. That is a much larger grant of authority, which i
 
 ## Highlights
 
+- **Installs in seconds.** Prebuilt `aarch64` and `amd64` images, published to GHCR by
+  CI for every released version. Nothing compiles on your Raspberry Pi, and every
+  installation of a given version is provably the same code.
+- **It sets itself up.** Start it and open **OPEN WEB UI**: the endpoint, the token
+  behind a *Show secrets* toggle with a copy button, a ready-made command for Claude
+  Code, a ready-made JSON configuration for everything else, and the live tool list.
+  No token to invent, no documentation to read first.
 - **18 tools** covering state, history, logbook, services, templates, config,
   registries, logs, add-ons, backups and raw API access.
 - **No long-lived access token.** The add-on authenticates to Home Assistant with the
@@ -75,29 +82,36 @@ refactor it, and build it out. That is a much larger grant of authority, which i
    https://github.com/MatthiasVanDE/hassio-mcp-server
    ```
 
-2. Find **MCP Server (Home Assistant API)** in the store and click **Install**. The
-   Supervisor builds the image on your own machine; on a Raspberry Pi expect a few
-   minutes.
-3. Open the **Configuration** tab and set a `token`. Generate a real one:
-
-   ```bash
-   openssl rand -hex 32
-   ```
-
-   The add-on **refuses to start without a token** — see [security](#security).
-4. **Start** the add-on and check the **Log** tab. A healthy start looks like this:
+2. Find **MCP Server (Home Assistant API)** in the store and click **Install**. A
+   prebuilt image is pulled; it takes seconds, and nothing is compiled on your machine.
+3. **Start** it. There is nothing to configure first: with no `token` set, the add-on
+   generates one, keeps it across restarts and updates, and prints it in the **Log**
+   tab. A healthy start looks like this:
 
    ```text
+   [09:12:04] INFO    No token was configured, so one was generated for you:
+   [09:12:04] INFO        3f7c…
    [09:12:04] INFO    connection to Home Assistant: HTTP 200 {'message': 'API running.'}
    [09:12:04] INFO    time zone: Europe/Brussels (from Home Assistant)
+   [09:12:04] INFO    clients should connect to http://192.168.0.16:8099/mcp
    [09:12:04] INFO    18 tools available on port 8099 (/mcp, /sse, /health)
+   [09:12:04] INFO    add-on page on ingress port 8098
    ```
+
+4. Click **OPEN WEB UI**. The page shows the endpoint and the token with copy buttons,
+   and a configuration you can paste straight into your client. Prefer to choose the
+   token yourself? Set `token` in the **Configuration** tab and restart; it wins over
+   the generated one.
 
 Full option reference, tool-by-tool documentation and troubleshooting live in
 **[`ha_mcp_server/DOCS.md`](ha_mcp_server/DOCS.md)**, which is also shown on the
 add-on's Documentation tab once installed.
 
 ## Connecting a client
+
+**The add-on's own page has all of this filled in for you**, with your address and
+your token: click **OPEN WEB UI**, or the **MCP Server** entry in the sidebar. What
+follows is the same thing, spelled out.
 
 The endpoint is `http://<home-assistant-host>:8099/mcp`, with your token in an
 `Authorization: Bearer` header.
@@ -139,7 +153,7 @@ same bearer token.
 
 ```bash
 curl -s http://homeassistant.local:8099/health
-# {"status": "ok", "version": "2.0.0", "tools": 18}
+# {"status": "ok", "version": "2.1.0", "tools": 18}
 
 curl -s http://homeassistant.local:8099/mcp \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -180,12 +194,18 @@ reach its port with the right token can do anything you can do in the Home Assis
 UI, including running services, editing automations, reading your logs and downloading
 your backups.
 
-- **The token is the entire boundary.** Use a long random value. `openssl rand -hex 32`,
-  not the name of your dog. The add-on refuses to start with an empty token rather than
-  quietly opening the port.
+- **The token is the entire boundary.** Left to itself the add-on generates 32 random
+  bytes and keeps them in `/data`; if you set one by hand, use a value of that calibre
+  (`openssl rand -hex 32`, not the name of your dog). The port is never open without
+  one.
 - **Do not forward port 8099 to the internet.** The transport is plain HTTP; the token
   would cross the network in the clear. Reach it over a VPN (WireGuard, Tailscale) or
   put it behind a reverse proxy that terminates TLS.
+- **The add-on's page shows the token only to administrators.** Ingress authenticates
+  whoever opens it, but does not by itself keep non-administrators out, so the page
+  checks `system-admin` group membership itself before printing the token — and says
+  so when it will not. Its port is not published to your network; only the Supervisor
+  can reach it.
 - **`/health` is intentionally unauthenticated**, because the container's health check
   cannot send a token. It reveals only `ok`, the version and the number of tools.
 - **Treat it as an admin credential** in whatever client you configure it in, and rotate

@@ -1,4 +1,7 @@
-# The Supervisor builds this image on the Home Assistant machine itself.
+# Built by CI and published to GHCR for both architectures; the Supervisor pulls it
+# rather than building anything, which is the difference between an install that takes
+# seconds and one that compiles for minutes on a Raspberry Pi. It still builds by hand
+# -- `docker build ./ha_mcp_server` -- which is how you check what is in it.
 #
 # A plain `FROM`, not BUILD_FROM with a build.yaml: that legacy builder was retired
 # in Supervisor 2026.04. Because the upstream Python image is published as a
@@ -15,9 +18,9 @@ FROM python:3.12-slim
 # tzdata gives zoneinfo its database, so the time zone Home Assistant reports can
 # actually be resolved; the slim image ships without it.
 #
-# Both are pinned. This image is rebuilt on each user's own machine, at whatever date
-# they happen to install it, so an unpinned version means no two installations are
-# necessarily running the same code. Dependabot raises these.
+# Both are pinned, so the image published under a version tag is the same code for
+# everyone who installs it -- including anyone who builds it themselves months later.
+# Dependabot raises these.
 RUN pip install --no-cache-dir \
       websockets==17.1 \
       tzdata==2026.4
@@ -27,7 +30,9 @@ COPY server.py /server.py
 ENV PYTHONUNBUFFERED=1
 
 # Labels the Supervisor and the add-on store read back.
-ARG BUILD_VERSION="2.0.0"
+# Overridden by CI with the version from config.yaml; the default keeps a hand-built
+# image honest about what it is.
+ARG BUILD_VERSION="dev"
 LABEL \
   io.hass.name="MCP Server (Home Assistant API)" \
   io.hass.description="Expose the full Home Assistant REST, WebSocket and Supervisor API as MCP tools" \

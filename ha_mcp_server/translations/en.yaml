@@ -3,10 +3,11 @@ configuration:
   token:
     name: API token
     description: >-
-      Bearer token your MCP client must send in the Authorization header. Generate a long
-      random string, for example with `openssl rand -hex 32`. The add-on refuses to start
-      while this is empty, because an unauthenticated port here grants full administrative
-      access to Home Assistant.
+      Bearer token your MCP client must send in the Authorization header. Leave this empty
+      and the add-on generates one on first start, keeps it across restarts and updates, and
+      shows it on its own page (OPEN WEB UI) and in its log. Set it to a value of your own to
+      choose the token yourself, for example the output of `openssl rand -hex 32`. Whoever
+      holds this token holds full administrative access to Home Assistant.
   log_level:
     name: Log level
     description: >-

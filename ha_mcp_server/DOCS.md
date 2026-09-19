@@ -12,9 +12,32 @@ and change your Home Assistant installation.
 
 1. Add the repository `https://github.com/MatthiasVanDE/hassio-mcp-server` under
    **Settings → Add-ons → Add-on Store → ⋮ → Repositories**.
-2. Install **MCP Server (Home Assistant API)**.
-3. Set a `token` on the Configuration tab.
-4. Start the add-on, then check the Log tab.
+2. Install **MCP Server (Home Assistant API)**. A prebuilt image is pulled; nothing is
+   compiled on your machine.
+3. Start it. Nothing has to be configured first — a token is generated on the first
+   start if you have not set one.
+4. Click **OPEN WEB UI** (or the **MCP Server** entry in the sidebar). The page shows
+   the endpoint, the token and a ready-made client configuration, each with a copy
+   button.
+
+## The add-on page
+
+Served over Supervisor ingress, on a port of its own that is not published to your
+network. It speaks no MCP: it exists so that connecting a client is copy and paste
+rather than reading this document.
+
+It shows whether Home Assistant is answering, the address a client should use, the
+time zone in force, the token, a `claude mcp add` command, a JSON configuration for
+any other client, and every tool with a one-line description.
+
+Secrets on the page start blurred; *Show secrets* reveals them, and the copy buttons
+work either way, so you can hand someone a screenshot without handing them your house.
+
+**Who may see the token.** Ingress makes Home Assistant authenticate whoever opens the
+page, but that is not the same as restricting it to administrators. The page therefore
+asks Home Assistant itself whether your account is in the `system-admin` group, and
+prints the token only then. If the answer is no — or if the question could not be
+answered — the page says so and leaves the token out. It is always in the add-on log.
 
 ## Configuration
 
@@ -24,17 +47,25 @@ log_level: info
 timezone: ""
 ```
 
-### Option: `token` (required)
+### Option: `token` (optional since 2.1.0)
 
-The bearer token an MCP client must send in its `Authorization` header. There is no
-default and **the add-on will not start while this is empty** — an unauthenticated
-port here would hand full administrative access to your home to anyone on the network.
+The bearer token an MCP client must send in its `Authorization` header.
 
-Generate one properly:
+**Left empty, the add-on generates one** of 32 random bytes on its first start, stores
+it in `/data/token` — outside the options, so it survives restarts and updates and
+never turns up in a configuration you paste into an issue — and shows it on its page
+and in its log. The port is therefore never unauthenticated, which matters, because
+reaching it means full administrative access to your home.
+
+Set it to a value of your own if you would rather choose, or need the same token on
+several installations:
 
 ```bash
 openssl rand -hex 32
 ```
+
+A configured token always wins over the generated one. Changing it takes effect on
+restart, and every already-configured client must be updated to match.
 
 ### Option: `log_level`
 
@@ -53,9 +84,10 @@ wrong time zone configured, silently shifts every answer by the offset.
 
 ## Network
 
-| Port | Purpose |
-|---|---|
-| `8099/tcp` | `POST /mcp` streamable HTTP · `GET /sse` SSE transport · `GET /health` |
+| Port | Published | Purpose |
+|---|---|---|
+| `8099/tcp` | yes | `POST /mcp` streamable HTTP · `GET /sse` SSE transport · `GET /health` |
+| `8098/tcp` | no | the add-on page, reachable only through Supervisor ingress |
 
 `/health` is deliberately **not** authenticated: the container's Docker `HEALTHCHECK`
 polls it and cannot send a bearer token. A container that stops answering is restarted.
@@ -283,7 +315,11 @@ add-on.
 
 The token is the entire security boundary.
 
-- Use a long random token. `openssl rand -hex 32`.
+- The generated token is 32 random bytes from `secrets.token_hex`. If you set one by
+  hand, match that: `openssl rand -hex 32`.
+- The add-on page is on an unpublished port that only the Supervisor can reach, it is
+  never cached (`Cache-Control: no-store`), and it prints the token only for accounts
+  in the `system-admin` group.
 - **Do not expose port 8099 to the internet.** The transport is plain HTTP and the
   token would cross the network in the clear. Use a VPN, or a reverse proxy that
   terminates TLS.
@@ -296,8 +332,15 @@ by the Supervisor and disappears with the container.
 
 ## Troubleshooting
 
-**The add-on stops immediately and the log says `NO TOKEN CONFIGURED`.**
-Set `token` on the Configuration tab. This is deliberate, not a bug.
+**The log warns that the generated token could not be stored.**
+`/data` is not writable, which means a new token on every start and clients that stop
+working after a restart. Set `token` on the Configuration tab to a fixed value, and
+check the add-on's storage in the Supervisor.
+
+**The add-on page says it cannot establish that you are an administrator.**
+It asks Home Assistant for the user list over the WebSocket API; that call failed. The
+page still works and the token is in the add-on log. If it persists, the core was
+probably not up yet — restart the add-on.
 
 **`No SUPERVISOR_TOKEN in the environment`.**
 The add-on is not running under the Supervisor. It requires Home Assistant OS or

@@ -7,11 +7,40 @@
 # Assistant machine itself, so it is always up and reachable from any device -- not
 # only from the one computer that happens to be running an MCP client.
 name: MCP Server (Home Assistant API)
-version: "2.0.0"
+version: "2.1.0"
 slug: ha_mcp_server
 description: >-
   Expose the full Home Assistant REST, WebSocket and Supervisor API as MCP tools over HTTP.
 url: https://github.com/MatthiasVanDE/hassio-mcp-server
+
+# PREBUILT IMAGE. Without this line the Supervisor builds the Dockerfile on the user's
+# own machine at install time: minutes of compiling on a Raspberry Pi, a download of
+# the whole Python toolchain, and a different result depending on the day. With it,
+# installing is a pull of the image that CI built and signed off on for this exact
+# version tag. `{arch}` is substituted by the Supervisor; the tag it pulls is the
+# `version` above, which is why .github/workflows/release.yaml refuses to publish
+# unless the tag, this version and the changelog agree.
+image: ghcr.io/matthiasvande/{arch}-addon-ha-mcp-server
+
+# This add-on is not a rolling experiment; the store may say so.
+stage: stable
+
+# Nothing in the container is state worth freezing: the token lives in /data, which
+# the Supervisor backs up either way. No reason to stop the add-on for a backup.
+backup: hot
+
+# THE ADD-ON'S OWN PAGE ("OPEN WEB UI"), on a port of its own.
+# It shows the endpoint, the token with a copy button, a ready-made client
+# configuration and the tool list -- the things a new user would otherwise have to
+# assemble out of the documentation. The Supervisor authenticates the visitor before
+# proxying anything here, and `panel_admin` keeps the sidebar entry to administrators;
+# the server additionally checks group membership itself before it prints the token,
+# because that panel setting governs the sidebar, not the URL.
+ingress: true
+ingress_port: 8098
+panel_admin: true
+panel_icon: mdi:robot-happy-outline
+panel_title: MCP Server
 
 # The two architectures Home Assistant still supports; armv7 and i386 were dropped in
 # Home Assistant 2025.12. Upstream publishes python:3.12-slim for both, so one plain
@@ -54,9 +83,10 @@ ports_description:
   8099/tcp: MCP endpoint (streamable HTTP on /mcp, SSE on /sse)
 
 options:
-  # Bearer token an MCP client must send. Empty = the add-on refuses to start; that
-  # is deliberate, since an open port here would mean full administrative access to
-  # your home for anyone who can reach it.
+  # Bearer token an MCP client must send. Left empty, the add-on generates one on
+  # first start, keeps it in /data so it survives restarts and updates, and shows it
+  # on its own page and in its log. The port is therefore never unauthenticated --
+  # which matters, because reaching it means full administrative access to the house.
   token: ""
   log_level: info
 

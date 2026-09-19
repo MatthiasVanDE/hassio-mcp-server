@@ -1,0 +1,89 @@
+---
+# Publishing is what makes the add-on installable at all: config.yaml carries an
+# `image:`, so the Supervisor pulls ghcr.io/.../{arch}-addon-ha-mcp-server:<version>
+# and an install fails outright if that tag was never pushed. Hence a deliberate
+# trigger -- a version tag -- and a guard that refuses to publish anything the
+# manifest and the changelog do not agree on.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  guard:
+    name: Version agreement
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      image: ${{ steps.read.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the manifest and check it against the tag
+        id: read
+        run: |
+          set -euo pipefail
+          version=$(awk -F'"' '/^version:/ {print $2; exit}' ha_mcp_server/config.yaml)
+          image=$(awk '/^image:/ {print $2; exit}' ha_mcp_server/config.yaml)
+          [ -n "$version" ] && [ -n "$image" ] || { echo "config.yaml has no version or image"; exit 1; }
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match config.yaml version ${version}" >&2
+            exit 1
+          fi
+          grep -q "^## ${version} " ha_mcp_server/CHANGELOG.md \
+            || { echo "CHANGELOG.md has no entry for ${version}" >&2; exit 1; }
+          grep -q "^VERSION = \"${version}\"" ha_mcp_server/server.py \
+            || { echo "server.py reports a different version than ${version}" >&2; exit 1; }
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "publishing ${image} ${version}"
+
+  publish:
+    name: Publish ${{ matrix.arch }}
+    needs: guard
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            platform: linux/arm64
+          - arch: amd64
+            platform: linux/amd64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the image name for this architecture
+        id: name
+        run: |
+          set -euo pipefail
+          template='${{ needs.guard.outputs.image }}'
+          echo "image=${template//\{arch\}/${{ matrix.arch }}}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ha_mcp_server
+          platforms: ${{ matrix.platform }}
+          push: true
+          build-args: BUILD_VERSION=${{ needs.guard.outputs.version }}
+          # One plain image manifest per architecture, which is what the Supervisor
+          # pulls. Attestations would wrap it in an index the add-on store has no use
+          # for and some Supervisor versions choke on.
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ steps.name.outputs.image }}:${{ needs.guard.outputs.version }}
+            ${{ steps.name.outputs.image }}:latest
+      - name: Confirm the tag can actually be pulled
+        run: docker buildx imagetools inspect ${{ steps.name.outputs.image }}:${{ needs.guard.outputs.version }}

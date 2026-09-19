@@ -14,6 +14,7 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -24,7 +25,9 @@ SERVER = os.path.join(HERE, os.pardir, "ha_mcp_server", "server.py")
 # A non-ASCII token on purpose: compare_digest on str raises on anything but ASCII.
 TOKEN = "test-tökén-9f2a"
 PORT = 18099
+IPORT = 18098
 BASE = f"http://127.0.0.1:{PORT}"
+IBASE = f"http://127.0.0.1:{IPORT}"
 
 failures = []
 
@@ -159,6 +162,56 @@ def main():
     check("a message for an unknown session is not",
           post("/messages?session_id=deadbeef", ping, TOKEN)[0], 404)
     conn.close()
+
+    print("token resolution")
+    with tempfile.TemporaryDirectory() as tmp:
+        m.TOKEN_FILE = os.path.join(tmp, "token")
+        m.OPTIONS = {}
+        first, source = m.resolve_token()
+        check("a token is generated when none is configured", len(first), 64)
+        check("and reported as generated", source, "generated")
+        check("it is persisted", open(m.TOKEN_FILE).read().strip(), first)
+        # A token that changed on every start would break every configured client.
+        check("a restart reuses it", m.resolve_token()[0], first)
+        m.OPTIONS = {"token": "  chosen-by-hand  "}
+        check("a configured token wins", m.resolve_token(), ("chosen-by-hand", "configuration"))
+    m.TOKEN = TOKEN
+
+    print("the add-on page")
+    # None of this may depend on Home Assistant being reachable.
+    m.HOST = "192.168.0.16"
+    m.TZ_LABEL = "Europe/Brussels (from Home Assistant)"
+    m.core = lambda *a, **k: {"status": 200, "body": {"message": "API running."}}
+    m.ws_cmd = lambda *a, **k: [{"id": "admin-1", "group_ids": ["system-admin"]},
+                                {"id": "guest-1", "group_ids": ["system-users"]}]
+    ing = m.Server(("127.0.0.1", IPORT), m.IngressHandler)
+    threading.Thread(target=ing.serve_forever, daemon=True).start()
+    time.sleep(0.3)
+
+    def page(user_id):
+        req = urllib.request.Request(IBASE + "/", headers={"X-Remote-User-Id": user_id,
+                                                           "X-Remote-User-Name": "tester"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, r.read().decode(), dict(r.headers)
+
+    status, body, headers = page("admin-1")
+    check("ingress needs no bearer token", status, 200)
+    check("an administrator sees the token", TOKEN in body, True)
+    check("the endpoint is spelled out", f"http://192.168.0.16:{m.PORT}/mcp" in body, True)
+    check("every tool is listed", all(name in body for name in m.TOOLS), True)
+    check("secrets start hidden", 'class="hide-secrets"' in body, True)
+    check("the page is not cached", headers.get("Cache-Control"), "no-store")
+
+    status, body, _ = page("guest-1")
+    check("a non-administrator does not see the token", TOKEN in body, False)
+    check("and is told why", "not an administrator" in body, True)
+
+    m.ws_cmd = lambda *a, **k: {"error": "no websocket here"}
+    status, body, _ = page("admin-1")
+    check("an unverifiable user does not see the token", TOKEN in body, False)
+    check("the page still renders", status, 200)
+    check("no user id at all is not an administrator", m.is_admin(""), False)
+    ing.shutdown()
 
     print("helpers")
     check("short text is left alone", m.clip("short"), "short")

@@ -9,7 +9,7 @@ The add-on itself. See:
 
 | File | Role |
 |---|---|
-| `server.py` | The entire MCP server: transports, JSON-RPC, all 18 tools |
+| `server.py` | The entire MCP server: transports, JSON-RPC, all 18 tools, the add-on page |
 | `config.yaml` | Add-on manifest: permissions, ports, options |
-| `Dockerfile` | Built by the Supervisor on your own machine |
+| `Dockerfile` | Built by CI and published to GHCR; the Supervisor only pulls |
 | `translations/en.yaml` | Option labels shown in the Home Assistant UI |

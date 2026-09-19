@@ -12,5 +12,7 @@ rules:
   document-start:
     present: true
 
+# The workflows are linted too: they are the thing that publishes the image, so a
+# YAML mistake there is a release that silently never happens.
 ignore: |
-  .github/
+  .ruff_cache/
