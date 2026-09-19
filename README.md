@@ -1,5 +1,6 @@
 # Home Assistant Add-on: MCP Server
 
+[![Latest release][release-badge]][releases]
 [![License: MIT][license-badge]][license]
 [![Supports aarch64][aarch64-badge]](#requirements)
 [![Supports amd64][amd64-badge]](#requirements)
@@ -250,6 +251,8 @@ This project is not affiliated with or endorsed by the Home Assistant project or
 Nabu Casa, Inc.
 
 [mcp]: https://modelcontextprotocol.io
+[releases]: https://github.com/MatthiasVanDE/hassio-mcp-server/releases
+[release-badge]: https://img.shields.io/github/v/release/MatthiasVanDE/hassio-mcp-server?label=add-on&color=41bdf5
 [mcp-remote]: https://www.npmjs.com/package/mcp-remote
 [license]: LICENSE
 [license-badge]: https://img.shields.io/badge/license-MIT-blue.svg
