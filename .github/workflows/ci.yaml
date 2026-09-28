@@ -73,7 +73,7 @@ jobs:
         run: ruff check --select=E9,F63,F7,F82,F401,F841 --line-length=120 ha_mcp_server/server.py
 
   test:
-    name: Transport tests
+    name: Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -81,9 +81,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: pip install "websockets>=12"
+        run: pip install "websockets>=12" "pyyaml>=6"
       - name: Run tests
-        run: python tests/test_transport.py
+        run: |
+          python tests/test_transport.py
+          python tests/test_tools.py
 
   build:
     name: Build ${{ matrix.arch }}

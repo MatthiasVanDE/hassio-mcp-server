@@ -4,6 +4,74 @@ All notable changes to this add-on are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.2.0 — 2026-09-28
+
+Eight new tools and a safety net under every change. The ideas come from comparing
+this add-on with the much larger [ha-mcp](https://github.com/homeassistant-ai/ha-mcp)
+server; what is useful was rebuilt here on the REST, WebSocket and Supervisor APIs,
+with no code running inside Home Assistant itself.
+
+### Added
+
+- **`ha_overview`** — what needs attention, in one call: unavailable entities, pending
+  updates, open repairs, integrations that failed to load, add-ons in error,
+  notifications, and the number of errors in the log.
+- **`ha_search`** — find entities by words in their id, name, area, device or aliases,
+  tolerant of a typo. Given an exact entity id it also lists every automation, script,
+  scene and group that uses it (YAML ones included), through Home Assistant's own
+  `search/related`.
+- **`ha_traces`** — why an automation or script did what it did: its recent runs, and
+  one run step by step with the trigger, each condition's result, each action's result
+  and the variables it changed. When there are no traces it says why.
+- **`ha_statistics`** — long-term statistics (hourly, daily, monthly mean/min/max and
+  meter totals), which the recorder keeps for years where history is purged after ten
+  days.
+- **`ha_file`** — list, read and search Home Assistant's configuration directory, and
+  with the new `file_access: read_write` option also write, edit and delete. YAML is
+  validated before it is written, `secrets.yaml` is shown masked and never written,
+  `.storage` is never written, and login data is never read. `edit` replaces one exact
+  piece of text, so a change to a large file does not mean sending all of it.
+- **`ha_dashboard`** — an outline of a dashboard, one part of it by JSON pointer, and
+  changes as JSON Patch operations instead of a complete rewrite.
+- **`ha_check_config`** — the configuration check the UI runs before a restart.
+- **`ha_camera`** — a camera snapshot as an MCP image the model can look at.
+- **Backups of every change.** `ha_config_save`, `ha_config_delete`, `ha_file` and
+  `ha_dashboard` keep the previous version in `share/ha-mcp/backups` before changing
+  anything, name it in their answer, and refuse to go ahead when the copy fails.
+- **A review when an automation or script is saved.** Entities and services that do
+  not exist are listed (Home Assistant accepts them and only fails at run time), with
+  advice where a template does what a native trigger or condition would do better.
+- **A read-only token** (`readonly_token`): a client using it sees and may call only
+  what cannot change anything; everything else is refused before it reaches Home
+  Assistant.
+- **Tool annotations** (`readOnlyHint`, `destructiveHint`) on every tool, and server
+  `instructions` in the `initialize` answer.
+- Tests for all of the above against canned Home Assistant answers
+  (`tests/test_tools.py`), run in CI.
+
+### Changed
+
+- **A restart checks the configuration first.** `homeassistant.restart`,
+  `homeassistant.stop` and `hassio.host_reboot` through `ha_service`, and a restart or
+  reboot through `ha_supervisor`, are refused while the check fails. A broken
+  configuration would otherwise leave Home Assistant down, out of reach of the very
+  tool that could fix it. `skip_config_check` overrides.
+- `ha_history` returns compact `[time, state]` pairs in Home Assistant's time zone, and
+  takes an absolute or relative `start` and `end`. Only significant changes by default.
+- `ha_logbook` takes `start` and `end` as well.
+- `ha_error_log` gained `source: errors` — Home Assistant's de-duplicated error list
+  with counts and tracebacks — and `search` and `level` filters for the raw logs.
+- The manifest maps `homeassistant_config` (at `/homeassistant`). Restart the add-on
+  once after updating so the Supervisor mounts it.
+- `pyyaml` is a new, pinned dependency, used only to check YAML and to mask secrets.
+
+### Fixed
+
+- **`ha_error_log` and add-on logs never returned more than 100 lines**, whatever
+  `lines` said: the Supervisor answers with 100 unless it is asked for a range. It is
+  now asked for exactly the lines requested, and `ha_addon_action` `logs` takes `lines`
+  too.
+
 ## 2.1.1 — 2026-09-19
 
 ### Fixed

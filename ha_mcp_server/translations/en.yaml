@@ -13,6 +13,20 @@ configuration:
     description: >-
       How much the add-on writes to its log. Use `debug` to see every incoming tool call
       with its arguments; `info` is the sensible default.
+  file_access:
+    name: File access
+    description: >-
+      What the ha_file tool may do in Home Assistant's configuration directory. `read_only`
+      (the default) lists, reads and searches files. `read_write` also writes, edits and
+      deletes them; every change first keeps the previous version in
+      share/ha-mcp/backups, and YAML is validated before it is written. `off` disables
+      the tool. secrets.yaml is always shown masked and .storage is never written.
+  readonly_token:
+    name: Read-only token
+    description: >-
+      Optional second bearer token for clients that should only look. With it, tools that
+      change nothing work, and every call that would change something is refused before it
+      reaches Home Assistant. Leave empty to disable.
   timezone:
     name: Time zone override
     description: >-

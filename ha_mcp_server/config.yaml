@@ -7,7 +7,7 @@
 # Assistant machine itself, so it is always up and reachable from any device -- not
 # only from the one computer that happens to be running an MCP client.
 name: MCP Server (Home Assistant API)
-version: "2.1.1"
+version: "2.2.0"
 slug: ha_mcp_server
 description: >-
   Expose the full Home Assistant REST, WebSocket and Supervisor API as MCP tools over HTTP.
@@ -66,9 +66,16 @@ hassio_role: manager
 # Binary data (a backup, a camera snapshot) cannot travel through an MCP response,
 # which is text. The server writes such files into the `share` folder and returns
 # the path; you open it over Samba or the File editor. The same folder catches
-# responses that are too large to inline, and is the source for uploads.
+# responses that are too large to inline, is the source for uploads, and holds the
+# backup the add-on makes of everything it overwrites (share/ha-mcp/backups).
+#
+# homeassistant_config is Home Assistant's own configuration directory, mounted at
+# /homeassistant. It is mounted writable because the ha_file tool can edit YAML; the
+# `file_access` option decides whether it actually may, and defaults to read-only.
 map:
   - type: share
+    read_only: false
+  - type: homeassistant_config
     read_only: false
 
 # Restarting an unhealthy container is handled by the Docker HEALTHCHECK in the
@@ -86,6 +93,11 @@ options:
   # which matters, because reaching it means full administrative access to the house.
   token: ""
   log_level: info
+  # What ha_file may do in Home Assistant's configuration directory: off, read_only
+  # (list, read, search) or read_write (also write, edit, delete -- always with a
+  # backup first). Read-only by default: writing configuration.yaml is the one change
+  # through which a mistake can keep Home Assistant from starting.
+  file_access: read_only
 
 schema:
   # Optional since 2.1.0, when an empty token stopped being fatal and started meaning
@@ -93,6 +105,10 @@ schema:
   # field that is genuinely fine to leave alone.
   token: password?
   log_level: list(debug|info|warning|error)
+  file_access: list(off|read_only|read_write)
+  # A second bearer token that can only read: tools that change nothing are allowed,
+  # the rest are refused before they reach Home Assistant.
+  readonly_token: password?
   # Optional IANA time zone override. Left out, the add-on asks Home Assistant which
   # time zone it runs in, which is what you want in nearly every case.
   timezone: str?

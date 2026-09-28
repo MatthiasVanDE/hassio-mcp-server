@@ -11,8 +11,9 @@
 This add-on turns the complete Home Assistant **REST API**, **WebSocket API** and
 **Supervisor API** into [Model Context Protocol][mcp] tools, served over HTTP from
 the machine Home Assistant already runs on. An MCP client — Claude, or any other —
-can then read state and history, call any service, render templates, create and edit
-automations, browse the device and area registries, read the core and host logs, and
+can then read state, history and long-term statistics, call any service, create and
+edit automations and see why they did what they did, search entities and what uses
+them, edit dashboards and YAML files with a backup of every change, read the logs, and
 manage add-ons and backups.
 
 [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.][repo-badge]][repo-link]
@@ -49,8 +50,14 @@ refactor it, and build it out. That is a much larger grant of authority, which i
   behind a *Show secrets* toggle with a copy button, a ready-made command for Claude
   Code, a ready-made JSON configuration for everything else, and the live tool list.
   No token to invent, no documentation to read first.
-- **18 tools** covering state, history, logbook, services, templates, config,
-  registries, logs, add-ons, backups and raw API access.
+- **26 tools** covering state, search, history, statistics, logbook, services,
+  templates, automation traces, config, YAML files, dashboards, registries, logs,
+  cameras, add-ons, backups and raw API access.
+- **Every change can be undone.** Overwriting or deleting an automation, a script, a
+  dashboard or a file first keeps the previous version in `share/ha-mcp/backups`, and
+  refuses to go ahead when it cannot. YAML is checked before it is written, and a
+  restart is refused while the configuration check fails.
+- **A read-only token**, optionally, for clients that should look but not touch.
 - **No long-lived access token.** The add-on authenticates to Home Assistant with the
   `SUPERVISOR_TOKEN` the Supervisor injects into the container. That token is managed
   and rotated by the Supervisor and never appears in a configuration file.
@@ -62,8 +69,8 @@ refactor it, and build it out. That is a much larger grant of authority, which i
   silently cut into unparseable JSON.
 - **Self-healing.** A Docker `HEALTHCHECK` polls `/health`; a container that stops
   answering is restarted.
-- **One file, one dependency.** `server.py` plus `websockets`. Nothing to audit but the
-  thing itself.
+- **One file, two dependencies.** `server.py` plus `websockets` and `pyyaml`. Nothing
+  to audit but the thing itself.
 
 ## Requirements
 
@@ -95,7 +102,8 @@ refactor it, and build it out. That is a much larger grant of authority, which i
    [09:12:04] INFO    connection to Home Assistant: HTTP 200 {'message': 'API running.'}
    [09:12:04] INFO    time zone: Europe/Brussels (from Home Assistant)
    [09:12:04] INFO    clients should connect to http://192.168.0.16:8099/mcp
-   [09:12:04] INFO    18 tools available on port 8099 (/mcp, /sse, /health)
+   [09:12:04] INFO    file access to the configuration directory: read_only
+   [09:12:04] INFO    26 tools available on port 8099 (/mcp, /sse, /health)
    [09:12:04] INFO    add-on page on ingress port 8098
    ```
 
@@ -155,28 +163,36 @@ same bearer token.
 
 ```bash
 curl -s http://homeassistant.local:8099/health
-# {"status": "ok", "version": "2.1.1", "tools": 18}
+# {"status": "ok", "version": "2.2.0", "tools": 26}
 
 curl -s http://homeassistant.local:8099/mcp \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools | length'
-# 18
+# 26
 ```
 
 ## The tools
 
 | Tool | What it does |
 |---|---|
+| `ha_overview` | What needs attention: unavailable entities, updates, repairs, failing integrations, errors |
+| `ha_search` | Find entities by name, area, device or alias, typo-tolerant — and what uses one |
 | `ha_states` | Read one entity in full, or a filtered list by domain or search text |
-| `ha_service` | Call any service in any domain |
+| `ha_service` | Call any service in any domain; a restart checks the configuration first |
 | `ha_template` | Render a Jinja2 template inside Home Assistant |
-| `ha_history` | State history over a period |
+| `ha_history` | State changes over a period, as compact `[time, state]` pairs |
+| `ha_statistics` | Long-term statistics: hourly, daily or monthly mean/min/max and meter totals |
 | `ha_logbook` | Who or what changed something, and when |
-| `ha_error_log` | The core, host or Supervisor log, ANSI codes stripped |
+| `ha_error_log` | The de-duplicated error list, or the core, host or Supervisor log with search and level filters |
+| `ha_traces` | Why an automation or script did what it did, run by run and step by step |
 | `ha_config_get` | Read an automation, script, scene or helper |
-| `ha_config_save` | Create or overwrite an automation, script, scene or helper |
-| `ha_config_delete` | Delete one |
+| `ha_config_save` | Create or overwrite one — backed up first, and checked for missing entities and services |
+| `ha_config_delete` | Delete one, backed up first |
+| `ha_check_config` | Check the YAML configuration, as the UI does before a restart |
+| `ha_file` | List, read and search the configuration directory; write and edit YAML if you allow it |
+| `ha_dashboard` | Read a dashboard or part of one, and change it with a patch instead of a full rewrite |
+| `ha_camera` | A camera snapshot, returned as an image the model can look at |
 | `ha_registry` | List entities, devices, areas, floors, labels or integrations |
 | `ha_expose` | Expose entities to Assist, or hide them |
 | `ha_addons` | List installed add-ons and their state |
@@ -208,6 +224,13 @@ your backups.
   checks `system-admin` group membership itself before printing the token — and says
   so when it will not. Its port is not published to your network; only the Supervisor
   can reach it.
+- **File access is read-only unless you say otherwise.** `ha_file` can write YAML only
+  with the `file_access` option set to `read_write`. Even then it never writes
+  `secrets.yaml` or `.storage`, never reads login data, shows `secrets.yaml` masked,
+  and keeps the previous version of anything it changes.
+- **A read-only token** (`readonly_token`) gives a client the reading tools and the
+  read-only half of the escape hatches (`GET` only, WebSocket list/get commands), and
+  refuses every other call before it reaches Home Assistant.
 - **`/health` is intentionally unauthenticated**, because the container's health check
   cannot send a token. It reveals only `ok`, the version and the number of tools.
 - **Treat it as an admin credential** in whatever client you configure it in, and rotate
@@ -222,15 +245,17 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md) — please do not open a p
   ┌───────────┐   HTTP+Bearer  ┌──────────────────┐  Supervisor ┌──────────────┐
   │ Claude,   │ ─────────────► │ server.py        │  token      │ Core REST    │
   │ or any    │   /mcp  /sse   │ JSON-RPC ◄─► HA  │ ──────────► │ Core WS      │
-  │ MCP host  │ ◄───────────── │ 18 tools         │             │ Supervisor   │
+  │ MCP host  │ ◄───────────── │ 26 tools         │             │ Supervisor   │
   └───────────┘                └────────┬─────────┘             └──────────────┘
-                                        │ files too large or binary
+                                        │ large or binary responses,
+                                        │ backups of every change
                                         ▼
                                   /share/ha-mcp
 ```
 
 `server.py` is a single-file MCP server with no framework: `ThreadingHTTPServer` for
-transport, `urllib` for REST, `websockets` for the WebSocket API. It never stores a
+transport, `urllib` for REST, `websockets` for the WebSocket API, `pyyaml` to check
+YAML before it is written. It never stores a
 Home Assistant credential — the `SUPERVISOR_TOKEN` arrives in the environment and dies
 with the container.
 

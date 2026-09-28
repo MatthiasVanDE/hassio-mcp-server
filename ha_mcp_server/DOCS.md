@@ -44,6 +44,8 @@ answered — the page says so and leaves the token out. It is always in the add-
 ```yaml
 token: "e3b0c44298fc1c149afbf4c8996fb924..."
 log_level: info
+file_access: read_only
+readonly_token: ""
 timezone: ""
 ```
 
@@ -73,6 +75,57 @@ One of `debug`, `info` (default), `warning`, `error`. At `debug` every incoming 
 call is logged with a 160-character preview of its arguments, which is the fastest way
 to see what a client is actually asking for.
 
+### Option: `file_access`
+
+What `ha_file` may do in Home Assistant's configuration directory:
+
+| Value | Allows |
+|---|---|
+| `off` | nothing; the tool answers that it is switched off |
+| `read_only` (default) | `list`, `read` and `search` |
+| `read_write` | also `write`, `edit` and `delete` |
+
+The directory is mounted into the add-on either way; this option is what decides.
+It defaults to read-only because a broken `configuration.yaml` is the one mistake
+that can keep Home Assistant from starting — and then nothing, this add-on included,
+can reach it to fix the file.
+
+With `read_write`, every change is still bounded:
+
+- the previous version of the file is copied to `share/ha-mcp/backups` **first**, and
+  the change is refused if that copy cannot be made;
+- a `.yaml` file is parsed before it is written (Home Assistant's own tags such as
+  `!include` and `!secret` are understood), and invalid YAML is refused;
+- the file is written beside the original and renamed over it, so Home Assistant
+  never reads half a file;
+- `secrets.yaml` and everything in `.storage` are never written, and login data
+  (`.storage/auth*`, `.storage/onboarding`, `.cloud`) is never read at all.
+
+### Option: `readonly_token` (optional)
+
+A second bearer token, for clients that should be able to look but not change
+anything. Leave it empty to disable. A client using it:
+
+- sees only the tools it can use, and gets instructions that say it is read-only;
+- may call every tool marked read-only (`ha_overview`, `ha_search`, `ha_states`,
+  `ha_history`, `ha_statistics`, `ha_logbook`, `ha_error_log`, `ha_traces`,
+  `ha_template`, `ha_config_get`, `ha_check_config`, `ha_camera`, `ha_registry`,
+  `ha_addons`);
+- may use the escape hatches only for what cannot change anything: `ha_rest` and
+  `ha_supervisor` with `GET`, `ha_ws` with list/get-style commands (never anything
+  under `auth/`), `ha_file` list/read/search, `ha_dashboard` list/get and
+  `ha_addon_action` info/logs.
+
+Anything else is refused before it reaches Home Assistant. An SSE session opened with
+the read-only token stays read-only for its lifetime.
+
+Read-only is not the same as harmless to share. It can read every entity, every
+automation, the logs, and through `ha_supervisor` `GET` the configuration of your
+add-ons — including passwords stored in their options. Downloading backups is not
+allowed, because a backup contains `secrets.yaml`. Give this token to a client you
+would trust to look around the whole house, not to someone who should see only part
+of it.
+
 ### Option: `timezone` (optional)
 
 An IANA time zone name such as `Europe/Brussels`. Leave it empty — the add-on then
@@ -91,9 +144,10 @@ wrong time zone configured, silently shifts every answer by the offset.
 
 `/health` is deliberately **not** authenticated: the container's Docker `HEALTHCHECK`
 polls it and cannot send a bearer token. A container that stops answering is restarted.
-The endpoint returns only `{"status": "ok", "version": …, "tools": 18}`.
+The endpoint returns only `{"status": "ok", "version": …, "tools": 26}`.
 
-Both `/mcp` and `/sse` require `Authorization: Bearer <token>`.
+Both `/mcp` and `/sse` require `Authorization: Bearer <token>` — the full token, or
+the read-only one if you configured it.
 
 ## Reaching it from a machine that is not on your network
 
@@ -153,12 +207,51 @@ Bridge with [`mcp-remote`][mcp-remote]:
 - Supported methods: `initialize`, `ping`, `tools/list`, `tools/call`, and the
   `notifications/initialized` and `notifications/cancelled` notifications. There are no
   resources or prompts — everything is a tool.
+- `initialize` returns short `instructions`: where to start, that changes are backed up,
+  and whether the connection is read-only.
+- Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`), which clients
+  can use to decide what to ask your permission for.
 
 ## Tool reference
 
 Every tool returns a JSON document as text. Failures come back with `isError: true` and
 a `status` / `error` field rather than throwing, so an assistant can read what went
 wrong and adjust.
+
+### Finding your way
+
+#### `ha_overview`
+
+No parameters. Everything that usually needs attention, in one answer: Home
+Assistant's version and state (including safe or recovery mode), entity counts per
+domain, unavailable entities (disabled ones left out), pending updates, open repairs
+that are not ignored, integrations that failed to load, add-ons in an error state,
+persistent notifications, and how many errors and warnings are in the log.
+
+#### `ha_search`
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `query` | string | Words, or an exact `entity_id` |
+| `domain` | string | Only this domain |
+| `area` | string | Only this area, by name or id |
+| `in_config` | boolean | Also search the text of every automation and script configuration |
+| `limit` | number | Default 25 |
+
+Matches words against the entity id, friendly name, area, device and aliases, and
+tolerates a typo. Results carry a `score` (100 is an exact id).
+
+With an **exact entity id** as `query`, the answer also has `used_by` — every
+automation, script, scene, group and person that refers to it, YAML-defined ones
+included — and `belongs_to`: its device, area and integration. That comes from Home
+Assistant's own `search/related`, the same index behind the *Related* tab in the UI.
+Dashboards and template sensors are not in that index; `ha_file` with
+`action: search` finds those.
+
+```json
+{"query": "zwembad warmtepomp"}
+{"query": "sensor.p1_meter_power"}
+```
 
 ### Reading state
 
@@ -183,14 +276,60 @@ Assistant state object, attributes included.
 
 #### `ha_history`
 
-State history. Parameters: `entity_id` (comma separated, optional) and `hours`
-(default 24). Requests are made with `minimal_response` and `no_attributes`, so the
-answer stays small enough to reason over.
+| Parameter | Type | Notes |
+|---|---|---|
+| `entity_id` | string | Comma separated |
+| `start` | string | ISO time, or relative: `6h`, `3d`, `2w`. Default 24 hours ago |
+| `end` | string | Same formats. Default now |
+| `hours` | number | Alternative to `start` |
+| `attributes` | boolean | Include attributes — much larger |
+| `all_changes` | boolean | Every change, not only significant ones |
+
+Returns each entity as `{"changes": n, "history": [["2026-09-28 10:06:10", "heat"], …]}`,
+in Home Assistant's time zone — about a quarter of the size of the REST format, which
+repeats the entity id and two timestamps on every row. Without `entity_id` it falls
+back to the REST answer for everything.
+
+State history is purged after ten days by default. For anything older, use
+`ha_statistics`.
+
+#### `ha_statistics`
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `statistic_ids` | string | **Required.** Entity ids, comma separated |
+| `start` / `end` | string | As for history. Default: the last 30 days |
+| `period` | string | `5minute`, `hour`, `day` (default), `week`, `month` |
+| `types` | string | Subset of `mean,min,max,sum,state,change` |
+
+The recorder's long-term statistics, kept for years: mean, min and max per period for
+measurements, `sum` and `change` for meters. `change` per `day` is the daily
+consumption of an energy sensor. Only entities with a `state_class` have statistics;
+the answer says which ids had none.
 
 #### `ha_logbook`
 
-Who or what changed something, and when. Parameters: `entity_id` (optional),
-`hours` (default 24). This is the tool that answers "why did the light come on".
+Who or what changed something, and when. Parameters: `entity_id` (optional), and
+`start`/`end`/`hours` as for history. This is the tool that answers "why did the
+light come on".
+
+#### `ha_traces`
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `entity_id` | string | **Required.** `automation.*` or `script.*` |
+| `run_id` | string | One run, from the list |
+| `limit` | number | Runs to list, default 10 |
+| `sections` | string | Only `trigger`, `condition`, `action`, `config`, `error` |
+
+Without `run_id`: the stored runs, newest first, with what triggered each, how it
+ended and its last step. With `run_id`: that run reduced to what explains it — the
+trigger (entity, from and to state), each condition with its result, each action
+step with its result and the variables it changed (shown once, not at every step).
+
+When there are no traces the answer says why: the automation does not exist, is
+switched off, has never run, or ran but its traces are gone (they are kept in memory
+and lost on a restart).
 
 #### `ha_template`
 
@@ -206,7 +345,9 @@ happens in Home Assistant instead of in the model's context.
 
 #### `ha_service`
 
-Call any service in any domain.
+Call any service in any domain. `homeassistant.restart`, `homeassistant.stop` and
+`hassio.host_reboot` first run the configuration check and are refused while it
+fails; pass `skip_config_check: true` if you are certain.
 
 | Parameter | Type | Notes |
 |---|---|---|
@@ -215,6 +356,7 @@ Call any service in any domain.
 | `entity_id` | string | Target entities, comma separated |
 | `data_json` | string | Extra service data, as JSON text |
 | `return_response` | boolean | For services that return data |
+| `skip_config_check` | boolean | Restart even if the configuration check fails |
 
 ```json
 {"domain": "light", "service": "turn_on", "entity_id": "light.kitchen",
@@ -235,6 +377,74 @@ Read, write and remove automations, scripts, scenes and helpers. `kind` is one o
   entire configuration** — read the object first unless you are creating a new one. A
   fresh `object_id` creates a new object.
 - `ha_config_delete` takes `kind` and `object_id`.
+
+Both first save the current version to `share/ha-mcp/backups` and put its path in the
+answer as `backup`; if the current version cannot be read, nothing is changed.
+
+For automations and scripts, `ha_config_save` then adds a `review`:
+
+- `missing` — every `entity_id` and service/action named in the configuration that
+  does not exist. Home Assistant accepts those at save time and fails only when it
+  runs. Templates are not evaluated, and blueprints are skipped.
+- `advice` — constructs that a native trigger or condition expresses better: a
+  numeric comparison, the time of day or the weekday computed in a template,
+  `now() - last_changed`, `states.x.y.state`, a device trigger, `wait_template`,
+  `service_template`, a motion automation with a delay in `mode: single`. Advice
+  only; the automation was saved.
+
+#### `ha_check_config`
+
+No parameters. Runs the same check as *Settings → System → Restart → Check
+configuration* and returns `{"result": "valid" | "invalid", "errors": …}`.
+
+#### `ha_file`
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `action` | string | `list`, `read` (default), `search`, `write`, `edit`, `delete` |
+| `path` | string | Relative to the configuration directory; `/config/…` is understood too |
+| `content` | string | `write`: the complete new content |
+| `old_text` / `new_text` | string | `edit`: replace one exact piece of text, which must occur exactly once |
+| `query` | string | `search`: a case-insensitive regular expression |
+| `pattern` | string | `list`/`search`: file name pattern; `search` defaults to `*.yaml` |
+| `recursive` | boolean | `list`: include subdirectories |
+| `start_line` / `max_lines` | number | `read`: a range of lines |
+
+Writing needs `file_access: read_write`; see the option for what is backed up,
+validated and never touched. `edit` is the one to prefer for a change in a large
+file: it sends only the part that changes. After a write the answer says what makes
+the change take effect (`automation.reload`, `template.reload`, or a check and a
+restart).
+
+```json
+{"action": "search", "query": "sensor\\.zwembad_temperatuur"}
+{"action": "edit", "path": "template.yaml", "old_text": "unit_of_measurement: W", "new_text": "unit_of_measurement: kW"}
+```
+
+#### `ha_dashboard`
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `action` | string | `list`, `get` (default), `patch` |
+| `url_path` | string | The dashboard; omit for the default one |
+| `path` | string | `get`: a JSON pointer, e.g. `/views/2/sections/0` |
+| `summary` | boolean | `get` without `path`: `false` returns everything |
+| `patch_json` | string | `patch`: a JSON Patch list — `add`, `replace`, `remove`, `move` |
+
+`get` without `path` returns an outline: each view's index, path, title and number of
+sections or cards. `patch` reads the current configuration, backs it up, applies every
+operation, and saves only if all of them succeeded. A real dashboard is hundreds of
+kilobytes; a patch sends only what changes.
+
+```json
+{"action": "patch", "url_path": "dashboard-klimaat", "patch_json":
+ "[{\"op\": \"replace\", \"path\": \"/views/0/title\", \"value\": \"Overzicht\"}]"}
+```
+
+#### `ha_camera`
+
+`entity_id` (a `camera.*`) and `width` (default 1024). Returns the snapshot as an MCP
+image, which a model that reads images can look at directly. Home Assistant scales it.
 
 These write to `automations.yaml` and friends exactly as the UI editors do, and the
 change is live immediately.
@@ -257,12 +467,20 @@ assistant can see.
 
 | Parameter | Type | Notes |
 |---|---|---|
-| `source` | string | `core` (default), `host`, `supervisor` |
-| `lines` | number | Trailing lines, default 100 |
+| `source` | string | `errors`, `core` (default), `host`, `supervisor` |
+| `lines` | number | Lines or entries to return, default 100, at most 5000 |
+| `search` | string | Only lines containing this text, case-insensitive |
+| `level` | string | Only this level and worse: `DEBUG` … `CRITICAL` |
 
-Served through the Supervisor's `/core/logs`, `/host/logs` and `/supervisor/logs`,
-because the core `/api/error_log` endpoint was removed in Home Assistant 2026.9. ANSI
-colour codes are stripped, and `total_lines` tells you how much was there in full.
+`errors` is Home Assistant's own list of distinct warnings and errors since the last
+start (`system_log/list`): each with how often it happened, when first and last, the
+logger, the source line and the traceback. Start there.
+
+`core`, `host` and `supervisor` are the raw logs, served through the Supervisor
+because the core `/api/error_log` endpoint was removed in Home Assistant 2026.9. The
+Supervisor is asked for exactly the last `lines` entries; with `search` or `level` it
+reads the last 3000 and filters those. ANSI colour codes are stripped. `lines_read`
+says how much was read, `matches` how much passed the filter.
 
 ### Add-ons, backups and the host
 
@@ -273,12 +491,14 @@ List every installed add-on as `{slug, name, state, version}`. No parameters.
 #### `ha_addon_action`
 
 Parameters: `slug`, and `action` — one of `info`, `logs`, `start`, `stop`, `restart`,
-`update`.
+`update`. For `logs`, `lines` sets how many (default 200).
 
 #### `ha_supervisor`
 
 Any Supervisor API call: host, OS, network, backups, the add-on store. Parameters:
-`endpoint`, `method` (default `GET`), `body_json`.
+`endpoint`, `method` (default `GET`), `body_json`. A `POST` to `/core/restart`,
+`/core/rebuild` or `/host/reboot` checks the configuration first, like `ha_service`;
+`skip_config_check: true` overrides that.
 
 ```json
 {"endpoint": "/backups"}
@@ -329,6 +549,21 @@ that:
 Both land in Home Assistant's `share` folder, reachable over Samba or the File editor
 add-on.
 
+## Backups of every change
+
+`ha_config_save`, `ha_config_delete`, `ha_file` (write, edit, delete) and
+`ha_dashboard` (patch) copy the current version to `share/ha-mcp/backups` before they
+change anything, and refuse to change it when that copy fails. Each answer names the
+file in `backup`. The names start with a timestamp, so the folder sorts in the order
+things happened; the newest 300 are kept.
+
+To undo a change, give the backup back: `ha_config_save` with the saved JSON,
+`ha_file` `write` with the saved file, or `ha_dashboard` — the saved dashboard is the
+complete configuration, which `ha_ws` `lovelace/config/save` accepts as is.
+
+These are not Home Assistant backups. For a full backup, use `ha_supervisor` with
+`/backups/new/full`.
+
 ## Security
 
 The token is the entire security boundary.
@@ -343,6 +578,9 @@ The token is the entire security boundary.
   terminates TLS.
 - Treat the token as an administrative credential wherever you store it, and rotate it
   if a machine holding it is lost.
+- Give a client that only needs to look the `readonly_token` instead.
+- `file_access` stays `read_only` unless you need the model to edit YAML. Whatever it
+  is set to, login data is never read and `secrets.yaml` is only ever shown masked.
 
 The add-on itself stores no Home Assistant credential. It authenticates to the core
 using the `SUPERVISOR_TOKEN` the Supervisor places in its environment, which is rotated
@@ -385,6 +623,18 @@ The time zone is wrong. Check the `time zone:` line in the add-on log, and set t
 **A response mentions a file in `/share/ha-mcp` that you cannot find.**
 That is Home Assistant's `share` folder — open the Samba share named `share`, or use
 the File editor add-on, and look in the `ha-mcp` subdirectory.
+
+**`ha_file` says the configuration directory is not mounted.**
+The mount is new in 2.2.0 and is set up when the add-on container is created. Restart
+the add-on once after updating.
+
+**`ha_file` refuses to write.**
+`file_access` is `read_only` (the default). Set it to `read_write` on the Configuration
+tab and restart the add-on.
+
+**A restart is refused with "the configuration check did not pass".**
+That is the check doing its job: Home Assistant would not come back up. Read the
+errors in the answer, fix them, and run `ha_check_config` until it says `valid`.
 
 ## Support
 

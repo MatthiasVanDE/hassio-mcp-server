@@ -10,20 +10,24 @@
 # wheel instead of compiling one on a Raspberry Pi.
 FROM python:3.12-slim
 
-# websockets is the only dependency: the REST API is reached with urllib from the
+# websockets is the main dependency: the REST API is reached with urllib from the
 # standard library, but Home Assistant's WebSocket API is not. That API is exactly
 # what is needed for everything the web interface can do and REST cannot offer:
 # registries, integrations, dashboards, backups.
 #
+# pyyaml checks a YAML file before ha_file writes it, and parses secrets.yaml so its
+# values can be masked. Nothing is ever loaded with it beyond that check.
+#
 # tzdata gives zoneinfo its database, so the time zone Home Assistant reports can
 # actually be resolved; the slim image ships without it.
 #
-# Both are pinned, so the image published under a version tag is the same code for
+# All three are pinned, so the image published under a version tag is the same code for
 # everyone who installs it -- including anyone who builds it themselves months later.
 # Dependabot raises these.
 RUN pip install --no-cache-dir \
       websockets==17.1 \
-      tzdata==2026.4
+      tzdata==2026.4 \
+      pyyaml==6.0.3
 
 COPY server.py /server.py
 
